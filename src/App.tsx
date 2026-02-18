@@ -38,7 +38,6 @@ export default function PlantillasHitss() {
   const [confirmacionCards, setConfirmacionCards] = useState<
     ConfirmacionCard[]
   >([]);
-  const [confirmacionInput, setConfirmacionInput] = useState("");
   const [confirmacionTipo, setConfirmacionTipo] = useState<
     "confirmacion" | "ciclo_llamada" | "reagendado"
   >("confirmacion");
