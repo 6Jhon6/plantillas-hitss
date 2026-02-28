@@ -386,6 +386,27 @@ export default function PlantillasHitss() {
     1221: { escenario: "TERCEROS", solucion: "Acometida cortada desde el TAP" },
   };
 
+  const [autor, setAutor] = useState("");
+  const [editandoAutor, setEditandoAutor] = useState(true);
+
+  const extraerSot = (texto: string) => {
+    return extraer(texto, /SOT\s*(\d+)/i);
+  };
+
+  const [sotConfirmacion, setSotConfirmacion] = useState("");
+  const [sotRechazo, setSotRechazo] = useState("");
+
+  const [nota, setNota] = useState("");
+  useEffect(() => {
+    const notaGuardada = localStorage.getItem("blocNotas");
+    if (notaGuardada) {
+      setNota(notaGuardada);
+    }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("blocNotas", nota);
+  }, [nota]);
+
   const [activeModule, setActiveModule] = useState<
     "confirmacion" | "rechazos" | "validaciones"
   >("validaciones");
@@ -403,6 +424,24 @@ export default function PlantillasHitss() {
   const [confirmacionTipo, setConfirmacionTipo] = useState<
     "confirmacion" | "ciclo_llamada" | "reagendado"
   >("confirmacion");
+
+  type RechazoTipo =
+    | "no_desea_servicio"
+    | "duplicidad"
+    | "facilidades_tecnicas"
+    | "falta_contacto"
+    | "mal_direccion"
+    | "mala_oferta"
+    | "mudanza_viaje"
+    | "errores_sistema"
+    | "posible_fraude";
+
+  const [rechazoTipo, setRechazoTipo] =
+    useState<RechazoTipo>("no_desea_servicio");
+
+  const [rechazoTextoBruto, setRechazoTextoBruto] = useState("");
+  const [rechazoPlantilla, setRechazoPlantilla] = useState("");
+  const [rechazoCopiado, setRechazoCopiado] = useState(false);
 
   // Cargar datos del localStorage
   useEffect(() => {
@@ -439,6 +478,17 @@ export default function PlantillasHitss() {
     }
   }, [currentPlantilla]);
 
+  useEffect(() => {
+    const guardado = localStorage.getItem("autorPlantillas");
+    if (guardado) setAutor(guardado);
+  }, []);
+
+  useEffect(() => {
+    if (autor) {
+      localStorage.setItem("autorPlantillas", autor);
+    }
+  }, [autor]);
+
   const handleAddCard = () => {
     if (currentInput.trim()) {
       const newCard: ValidationCard = {
@@ -456,6 +506,11 @@ export default function PlantillasHitss() {
       setEditingCardId(newCard.id);
       setShowPlantillaInput(true);
     }
+  };
+
+  const limpiarValidaciones = () => {
+    setCards([]); // limpia el estado
+    localStorage.removeItem("validationCards"); // limpia storage
   };
 
   const handleSavePlantilla = (cardId: string) => {
@@ -585,9 +640,9 @@ export default function PlantillasHitss() {
     return `${dia}/${mes}/${anio}, ${franja}`;
   }
 
-  
-
-  const generarPlantilla = () => {
+  function generarPlantilla() {
+    const n_sot = extraerSot(textoBruto);
+    setSotConfirmacion(n_sot);
     const fechaYFranja = obtenerFechaYFranja();
     const numero = extraer(textoBruto, /Telefono\s*(\d+)/i);
     const cliente = extraer(
@@ -605,7 +660,7 @@ DÍA Y FRANJA: ${fechaYFranja}
 CLIENTE: ${cliente}
 NUMERO: ${numero}
 ID DE LLAMADA: 
-REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
     }
 
     if (confirmacionTipo === "ciclo_llamada") {
@@ -616,7 +671,7 @@ NUMERO: ${numero}
 MOTIVO: FALTA DE CONTACTO
 SUB-MOTIVO: - no contesta-
 ID DE LLAMADA: 
-REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
     }
 
     if (confirmacionTipo === "reagendado") {
@@ -627,10 +682,149 @@ NUMERO: ${numero}
 NUEVA FECHA Y FRANJA DE VISITA: ${fechaYFranja}
 ID DE LLAMADA: 
 OBSERVACIÓN: 
-REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
     }
 
     setPlantillaGenerada(resultado);
+  }
+
+  /* generar rechazo */
+
+  const generarRechazo = () => {
+    const sot = extraerSot(rechazoTextoBruto);
+    setSotRechazo(sot);
+    const numero = extraer(rechazoTextoBruto, /Telefono\s*(\d+)/i);
+    const cliente = extraer(
+      rechazoTextoBruto,
+      /Nombre\s*([\s\S]*?)\s*(?=Tipo de Documento)/i,
+    );
+
+    let resultado = "";
+
+    if (rechazoTipo === "no_desea_servicio") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZO EN MESA
+PERSONA QUE CONTESTA: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: CLIENTE NO DESEA EL SERVICIO - MESA
+SUBMOTIVO DE RECHAZO:
+*Cliente ya tiene servicio de otro operador
+*Titular no ha contratado ningun servicio a Claro
+*Demora en la atención de la solicitud, ya no desea esperar.
+Cliente no desea servicio por Motivos personales.
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "duplicidad") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZADO EN MESA
+NOMBRE: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: RECHAZADO POR DUPLICIDAD
+SUBMOTIVO DE RECHAZO: se atendio con otra SOT
+**SE PROCEDE AL RECHAZO DE LA SOLICITUD POR DUPLICIDAD DE SOT, SE ATENDIÓ CON LA SOT
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "facilidades_tecnicas") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZADO EN MESA
+PERSONA QUE CONTESTA: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: FACILIDADES TÉCNICAS DEL CLIENTE
+SUBMOTIVO DE RECHAZO:
+*Dueño de Casa y/o Edificio no autoriza la instalacion.
+*Al momento de la instalación no hay acceso al techo
+*Al momento de la instalación se valida ducterias obstruidas
+*Cliente cuenta con sot de suspensión y/o baja
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "falta_contacto") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZO EN MESA
+CLIENTE: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: FALTA DE CONTACTO
+SUBMOTIVO DE RECHAZO: No hay contacto con el cliente (números errados)
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "mal_direccion") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZADO EN MESA
+PERSONA QUE CONTESTA: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: MAL INGRESO DE DIRECCIÓN
+DIRECCIÓN CORRECTA:
+SUBMOTIVO DE RECHAZO:
+*Dirección registrada en el sistema es errada. (numero, lt, mz, nombre cablle, distrito)
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "mala_oferta") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZADO EN MESA
+PERSONA QUE CONTESTA: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: MALA OFERTA
+SUBMOTIVO DE RECHAZO:
+*Tecnología incorrecta FTTH/HFC/OVERLAP Instalación/ Post Venta
+*Velocidad de Internet no es acorde a lo solicitado por el cliente
+*Cantidad o Modelo de Decos no es acorde a lo solicitado por el cliente
+*Cliente solicito atención PostVenta (Decos adicionales, traslados, etc.)
+*Cliente solicita adicionar la telefonía
+*Decodificadores descontinuados (Basico hd, Basico, Standar, DVR)
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "mudanza_viaje") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZADO EN MESA
+PERSONA QUE CONTESTA: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: MUDANZA O VIAJE
+SUBMOTIVO DE RECHAZO:
+*Cliente salió de viaje y en el domicilio no tienen conocimiento de la Instalación.
+*Cliente no vive en esta dirección, se mudó.
+*Cliente indica que pronto se mudara o viajara y rechaza instalación.
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "errores_sistema") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZADO EN MESA
+MOTIVO DEL RECHAZO: SOT CON ERRORES EN EL SISTEMA
+SUBMOTIVO DE RECHAZO:
+*Sin workflow, sin tareas generadas
+*Campaña mal configurada, no figura etiquetas correctas
+*Solicitud mal generada (no genera reservas, duplicidad de numeros, duplicidad de etiquetas, Sin Co_id, sin CustomerID, Sin plano, etc.)
+**SE PROCEDE AL RECHAZO DE LA SOLICITUD POR TENER ERRORES DE SISTEMAS:
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    if (rechazoTipo === "posible_fraude") {
+      resultado = `***MESA DE PROGRAMACIONES HITSS***
+RECHAZO EN MESA / CAMPO: RECHAZADO EN MESA
+PERSONA QUE CONTESTA: ${cliente}
+NUMERO DE CONTACTO: ${numero}
+MOTIVO DEL RECHAZO: POSIBLE FRAUDE
+SUBMOTIVO DE RECHAZO: Cliente ya tiene un servicio activo en la misma dirección
+CUSTOMER ID:
+AUTORIZADO POR:
+ID DE LLAMADA:
+REALIZADO POR: ${autor} - ADP MULTISKILL HITSS`;
+    }
+
+    setRechazoPlantilla(resultado);
   };
 
   const copiarPlantilla = async () => {
@@ -645,17 +839,62 @@ REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
     setTimeout(() => setCopiado(false), 2000);
   };
 
+  const copiarRechazo = async () => {
+    const lineal = rechazoPlantilla
+      .replace(/\n+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    await navigator.clipboard.writeText(lineal);
+    setRechazoCopiado(true);
+    setTimeout(() => setRechazoCopiado(false), 2000);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
+          <h1 className="text-4xl font-bold text-white mb-4">
             Plantillas Hitss
           </h1>
-          <p className="text-slate-300">
-            Gestiona tus plantillas de validación, confirmación y rechazos
-          </p>
+
+          <div className="bg-slate-700 border border-slate-600 rounded-lg p-4 mb-6">
+            {editandoAutor ? (
+              <div className="flex items-center gap-3">
+                <Input
+                  value={autor}
+                  onChange={(e) => setAutor(e.target.value)}
+                  placeholder="Nombre y apellido"
+                  className="bg-slate-600 border-slate-500 text-white placeholder:text-slate-400 max-w-xs"
+                />
+
+                <Button
+                  onClick={() => {
+                    if (!autor.trim()) return;
+                    setEditandoAutor(false);
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Ingresar
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="text-green-400 font-medium text-lg">
+                  👋 Bienvenido, {autor}
+                </p>
+
+                <Button
+                  variant="ghost"
+                  onClick={() => setEditandoAutor(true)}
+                  className="text-slate-300 hover:text-white"
+                >
+                  Cambiar
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -664,7 +903,7 @@ REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
           onValueChange={(value: any) => setActiveModule(value)}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-3 mb-6 bg-slate-800">
+          <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-800">
             <TabsTrigger value="confirmacion" className="text-white">
               Confirmación
             </TabsTrigger>
@@ -673,6 +912,9 @@ REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
             </TabsTrigger>
             <TabsTrigger value="validaciones" className="text-white">
               Validaciones
+            </TabsTrigger>
+            <TabsTrigger value="bloc-notas" className="text-white">
+              Bloc de notas
             </TabsTrigger>
           </TabsList>
 
@@ -720,7 +962,7 @@ REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
               <Card className=" bg-slate-600 border border-slate-500">
                 <CardHeader>
                   <CardTitle className="text-white">
-                    Resultado (editable)
+                    Resultado {sotConfirmacion && `#${sotConfirmacion}`}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -754,16 +996,91 @@ REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
 
           {/* Módulo Rechazos */}
           <TabsContent value="rechazos">
-            <Card className="bg-slate-700 border-slate-600">
-              <CardHeader>
-                <CardTitle className="text-white">Módulo de Rechazos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-slate-300 text-center py-12">
-                  <p className="text-lg">Este módulo está en desarrollo...</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card className="bg-slate-700 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white">
+                    Generar Plantilla de Rechazo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Textarea
+                    value={rechazoTextoBruto}
+                    onChange={(e) => setRechazoTextoBruto(e.target.value)}
+                    placeholder="Pega aquí todo el texto completo del sistema..."
+                    className="
+            bg-slate-600 border-slate-500 text-white 
+            placeholder:text-slate-400
+            h-40 max-h-40 min-h-40
+            resize-none overflow-y-auto
+          "
+                  />
+
+                  <select
+                    value={rechazoTipo}
+                    onChange={(e) =>
+                      setRechazoTipo(e.target.value as RechazoTipo)
+                    }
+                    className="w-full bg-slate-600 border border-slate-500 text-white rounded px-3 py-2"
+                  >
+                    <option value="no_desea_servicio">
+                      Cliente no desea servicio
+                    </option>
+                    <option value="duplicidad">Duplicidad</option>
+                    <option value="facilidades_tecnicas">
+                      Facilidades técnicas
+                    </option>
+                    <option value="falta_contacto">Falta de contacto</option>
+                    <option value="mal_direccion">
+                      Mal ingreso de dirección
+                    </option>
+                    <option value="mala_oferta">Mala oferta</option>
+                    <option value="mudanza_viaje">Mudanza o viaje</option>
+                    <option value="errores_sistema">Errores de sistema</option>
+                    <option value="posible_fraude">Posible fraude</option>
+                  </select>
+
+                  <Button
+                    onClick={generarRechazo}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Generar plantilla de rechazo
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-600 border border-slate-500">
+                <CardHeader>
+                  <CardTitle className="text-white">
+                    Resultado {sotRechazo && `#${sotRechazo}`}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Textarea
+                    value={rechazoPlantilla}
+                    onChange={(e) => setRechazoPlantilla(e.target.value)}
+                    className="bg-slate-600 border-slate-500 text-white min-h-48"
+                  />
+
+                  <Button
+                    onClick={copiarRechazo}
+                    className={`w-full flex items-center justify-center gap-2 transition ${
+                      rechazoCopiado
+                        ? "bg-green-600 hover:bg-green-600"
+                        : "bg-red-600 hover:bg-red-700"
+                    }`}
+                  >
+                    {rechazoCopiado ? (
+                      <>
+                        <CheckCircle className="w-5 h-5" /> Copiado
+                      </>
+                    ) : (
+                      "Copiar"
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Módulo Validaciones */}
@@ -827,6 +1144,12 @@ REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
                       className="bg-blue-600 hover:bg-blue-700"
                     >
                       Agregar
+                    </Button>
+                    <Button
+                      onClick={limpiarValidaciones}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      Limpiar
                     </Button>
                   </div>
                 </CardContent>
@@ -1024,6 +1347,42 @@ REALIZADO POR: Anderson Alfaro - ADP MULTISKILL HITSS`;
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          {/* Módulo Block de Notas */}
+          <TabsContent value="bloc-notas">
+            <Card className="bg-slate-700 border-slate-600">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white">Bloc de notas</CardTitle>
+
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    setNota("");
+                    localStorage.removeItem("blocNotas");
+                  }}
+                >
+                  Limpiar
+                </Button>
+              </CardHeader>
+
+              <CardContent>
+                <Textarea
+                  placeholder="Escribe aquí tus notas..."
+                  value={nota}
+                  onChange={(e) => setNota(e.target.value)}
+                  className="
+          min-h-[300px]
+          bg-slate-600
+          border-slate-500
+          text-white
+          placeholder:text-slate-400
+          resize-none
+        "
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
